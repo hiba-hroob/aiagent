@@ -1,6 +1,9 @@
 import argparse
 import os
 
+import argparse
+import os
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -21,13 +24,47 @@ client = OpenAI(
 )
 
 
-def run_agent(user_prompt: str, verbose: bool = False) -> str:
+def run_agent(
+    user_prompt: str,
+    verbose: bool = False,
+    activity_log: list | None = None,
+) -> str:
+    """
+    Run the AI coding agent.
+
+    The agent can inspect files, read code, execute Python files,
+    and modify files using the available tools.
+    """
+
     messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
+        {
+            "role": "system",
+            "content": system_prompt,
+        },
+        {
+            "role": "user",
+            "content": user_prompt,
+        },
     ]
 
-    for _ in range(20):
+    if activity_log is not None:
+        activity_log.append(
+            {
+                "type": "start",
+                "message": "Agent started",
+            }
+        )
+
+    for iteration in range(20):
+
+        if activity_log is not None:
+            activity_log.append(
+                {
+                    "type": "thinking",
+                    "message": f"Agent step {iteration + 1}",
+                }
+            )
+
         response = client.chat.completions.create(
             model="openrouter/free",
             messages=messages,
@@ -37,40 +74,102 @@ def run_agent(user_prompt: str, verbose: bool = False) -> str:
 
         message = response.choices[0].message
 
-        # Keep the assistant response in the conversation.
+        # Add the assistant message to the conversation.
         messages.append(message)
 
-        # The agent wants to use one or more tools.
+        # ---------------------------------
+        # Agent wants to use tools
+        # ---------------------------------
+
         if message.tool_calls:
+
             for tool_call in message.tool_calls:
+
+                function_name = tool_call.function.name
+
+                if activity_log is not None:
+                    activity_log.append(
+                        {
+                            "type": "tool",
+                            "tool": function_name,
+                            "message": f"Using {function_name}",
+                        }
+                    )
+
+                if verbose:
+                    print(
+                        f" - Calling function: {function_name}"
+                    )
+
                 result_message = call_function(
                     tool_call,
                     verbose=verbose,
                 )
 
                 if not result_message.get("content"):
-                    raise RuntimeError("Tool call returned no content")
+                    raise RuntimeError(
+                        "Tool call returned no content"
+                    )
 
-                # Give the tool result back to the agent.
                 messages.append(result_message)
 
-                if verbose:
-                    print(f"-> {result_message['content']}")
+                if activity_log is not None:
+                    activity_log.append(
+                        {
+                            "type": "tool_result",
+                            "tool": function_name,
+                            "message": f"{function_name} completed",
+                        }
+                    )
 
-            # Continue the loop so the agent can inspect
-            # the tool result and decide what to do next.
+                if verbose:
+                    print(
+                        f"-> {result_message['content']}"
+                    )
+
+            # The agent needs another model response
+            # after receiving the tool results.
             continue
 
-        # No more tools means the agent has finished.
-        return message.content or ""
+        # ---------------------------------
+        # No tools = final answer
+        # ---------------------------------
 
-    raise RuntimeError(
-        "Maximum iterations reached without a final response."
+        final_response = message.content or ""
+
+        if activity_log is not None:
+            activity_log.append(
+                {
+                    "type": "complete",
+                    "message": "Agent completed successfully",
+                }
+            )
+
+        return final_response
+
+    # ---------------------------------
+    # Safety limit
+    # ---------------------------------
+
+    if activity_log is not None:
+        activity_log.append(
+            {
+                "type": "error",
+                "message": "Maximum agent steps reached",
+            }
+        )
+
+    return (
+        "The agent reached its maximum number of steps "
+        "without completing the task."
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description="AI Coding Agent")
+def main() -> None:
+
+    parser = argparse.ArgumentParser(
+        description="AI Coding Agent"
+    )
 
     parser.add_argument(
         "user_prompt",
@@ -86,9 +185,6 @@ def main():
 
     args = parser.parse_args()
 
-    if args.verbose:
-        print(f"User prompt: {args.user_prompt}")
-
     final_response = run_agent(
         args.user_prompt,
         verbose=args.verbose,
@@ -100,3 +196,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
