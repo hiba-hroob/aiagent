@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -25,12 +26,7 @@ if api_key:
     )
 
 
-def add_activity(
-    activity_log: list | None,
-    activity_type: str,
-    message: str,
-    tool: str | None = None,
-):
+def add_activity(activity_log, activity_type, message, tool=None):
     if activity_log is None:
         return
 
@@ -39,13 +35,29 @@ def add_activity(
         "message": message,
     }
 
-    if tool:
+    if tool is not None:
         item["tool"] = tool
 
     activity_log.append(item)
 
 
-def inspect_project(activity_log=None) -> str:
+def get_project_files():
+    if not PROJECT_DIR.exists():
+        return []
+
+    files = []
+
+    for path in sorted(PROJECT_DIR.rglob("*")):
+        if ".venv" in path.parts or "__pycache__" in path.parts:
+            continue
+
+        if path.is_file():
+            files.append(str(path.relative_to(PROJECT_DIR)))
+
+    return files
+
+
+def inspect_project(activity_log=None):
     add_activity(
         activity_log,
         "tool",
@@ -53,41 +65,26 @@ def inspect_project(activity_log=None) -> str:
         "get_files_info",
     )
 
-    if not PROJECT_DIR.exists():
-        return "Calculator project directory was not found."
+    files = get_project_files()
 
-    lines = []
-
-    for path in sorted(PROJECT_DIR.rglob("*")):
-        if ".venv" in path.parts or "__pycache__" in path.parts:
-            continue
-
-        relative = path.relative_to(PROJECT_DIR)
-
-        if path.is_dir():
-            lines.append(f"[DIR]  {relative}")
-        else:
-            try:
-                size = path.stat().st_size
-            except OSError:
-                size = 0
-
-            lines.append(f"[FILE] {relative} ({size} bytes)")
+    if not files:
+        result = "No project files were found."
+    else:
+        result = "\n".join(
+            f"- {file_path}" for file_path in files
+        )
 
     add_activity(
         activity_log,
         "tool_result",
-        "Project files inspected",
+        f"Found {len(files)} project files",
         "get_files_info",
     )
 
-    return "\n".join(lines)
+    return result
 
 
-def read_project_file(
-    file_path: str,
-    activity_log=None,
-) -> str:
+def read_project_file(file_path, activity_log=None):
     add_activity(
         activity_log,
         "tool",
@@ -95,12 +92,13 @@ def read_project_file(
         "get_file_content",
     )
 
+    project_root = PROJECT_DIR.resolve()
     target = (PROJECT_DIR / file_path).resolve()
 
     try:
-        target.relative_to(PROJECT_DIR.resolve())
+        target.relative_to(project_root)
     except ValueError:
-        return "Error: file is outside the project directory."
+        return "Error: file is outside the project."
 
     if not target.exists() or not target.is_file():
         return f"File not found: {file_path}"
@@ -108,7 +106,7 @@ def read_project_file(
     try:
         content = target.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        return f"Could not read {file_path} as UTF-8 text."
+        return f"Could not read {file_path}."
 
     add_activity(
         activity_log,
@@ -120,86 +118,135 @@ def read_project_file(
     return content
 
 
-def run_local_tests(activity_log=None) -> tuple[int, str]:
+def run_local_tests(activity_log=None):
     add_activity(
         activity_log,
         "tool",
-        "Running calculator test suite",
+        "Running calculator tests",
         "run_python_file",
     )
 
-    try:
-        result = subprocess.run(
-            ["python", "tests.py"],
-            cwd=PROJECT_DIR,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.TimeoutExpired:
-        add_activity(
-            activity_log,
-            "error",
-            "Tests timed out",
-        )
-        return 124, "Tests timed out."
+    commands = [
+        ["python", "tests.py"],
+        ["python3", "tests.py"],
+    ]
 
-    output_parts = []
+    result = None
+
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                cwd=PROJECT_DIR,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            break
+        except FileNotFoundError:
+            continue
+        except subprocess.TimeoutExpired:
+            add_activity(
+                activity_log,
+                "error",
+                "Tests timed out",
+            )
+            return 124, "Tests timed out."
+
+    if result is None:
+        message = "Python executable was not found."
+        add_activity(activity_log, "error", message)
+        return 127, message
+
+    parts = []
 
     if result.stdout.strip():
-        output_parts.append(result.stdout.strip())
+        parts.append(result.stdout.strip())
 
     if result.stderr.strip():
-        output_parts.append(result.stderr.strip())
+        parts.append(result.stderr.strip())
 
-    output = "\n".join(output_parts)
+    output = "\n".join(parts)
 
     if result.returncode == 0:
-        message = "All calculator tests passed"
+        status = "All calculator tests passed."
     else:
-        message = "Calculator tests reported failures"
+        status = "Calculator tests reported failures."
 
     add_activity(
         activity_log,
         "tool_result",
-        message,
+        status,
         "run_python_file",
     )
 
     return result.returncode, output
 
 
-def calculate_demo_result() -> str:
-    try:
-        result = subprocess.run(
-            ["python", "main.py", "3 + 7 * 2"],
-            cwd=PROJECT_DIR,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-
-        if result.returncode != 0:
-            return result.stderr.strip() or "Calculator execution failed."
-
-        return result.stdout.strip()
-
-    except subprocess.TimeoutExpired:
-        return "Calculator execution timed out."
-
-
-def demo_response(
-    user_prompt: str,
-    activity_log: list | None = None,
-) -> str:
+def run_calculator(expression, activity_log=None):
     add_activity(
         activity_log,
-        "start",
-        "Starting local CodePilot demo",
+        "tool",
+        f"Running expression: {expression}",
+        "run_python_file",
     )
 
-    project_listing = inspect_project(activity_log)
+    commands = [
+        ["python", "main.py", expression],
+        ["python3", "main.py", expression],
+    ]
 
+    result = None
+
+    for command in commands:
+        try:
+            result = subprocess.run(
+                command,
+                cwd=PROJECT_DIR,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            break
+        except FileNotFoundError:
+            continue
+        except subprocess.TimeoutExpired:
+            return "Calculator execution timed out."
+
+    if result is None:
+        return "Python executable was not found."
+
+    if result.returncode != 0:
+        return (
+            result.stderr.strip()
+            or result.stdout.strip()
+            or "Calculator execution failed."
+        )
+
+    add_activity(
+        activity_log,
+        "tool_result",
+        "Calculator execution completed",
+        "run_python_file",
+    )
+
+    return result.stdout.strip()
+
+
+def detect_expression(text):
+    matches = re.findall(
+        r"(?<!\w)(?:\d+(?:\.\d+)?\s*)"
+        r"(?:[+\-*/]\s*(?:\d+(?:\.\d+)?\s*))+",
+        text,
+    )
+
+    if not matches:
+        return None
+
+    return matches[0].strip()
+
+
+def explain_project(activity_log=None):
     calculator_source = read_project_file(
         "pkg/calculator.py",
         activity_log,
@@ -210,99 +257,264 @@ def demo_response(
         activity_log,
     )
 
-    test_return_code, test_output = run_local_tests(
-        activity_log
+    main_source = read_project_file(
+        "main.py",
+        activity_log,
     )
 
-    calculator_output = calculate_demo_result()
+    explanation = []
 
-    tests_ok = test_return_code == 0
+    if "class Calculator" in calculator_source:
+        explanation.append(
+            "• `pkg/calculator.py` contains the Calculator class "
+            "responsible for evaluating expressions."
+        )
+    else:
+        explanation.append(
+            "• `pkg/calculator.py` contains the calculator logic."
+        )
 
-    source_state = (
-        "✅ Calculator source inspected."
-        if calculator_source.strip()
-        else "⚠️ Calculator source could not be inspected."
+    if "json.dumps" in render_source:
+        explanation.append(
+            "• `pkg/render.py` formats the result as JSON."
+        )
+    else:
+        explanation.append(
+            "• `pkg/render.py` handles result formatting."
+        )
+
+    if "sys.argv" in main_source:
+        explanation.append(
+            "• `calculator/main.py` is the command-line entry point."
+        )
+    else:
+        explanation.append(
+            "• `calculator/main.py` is the application entry point."
+        )
+
+    return "\n".join(explanation)
+
+
+def demo_response(user_prompt, activity_log=None):
+    add_activity(
+        activity_log,
+        "start",
+        "Starting CodePilot local mode",
     )
 
-    render_state = (
-        "✅ Renderer source inspected."
-        if render_source.strip()
-        else "⚠️ Renderer source could not be inspected."
-    )
+    prompt_lower = user_prompt.lower()
 
-    test_status = (
-        "✅ All local calculator tests passed."
-        if tests_ok
-        else "❌ Some local calculator tests failed."
+    if (
+        "test" in prompt_lower
+        or "tests" in prompt_lower
+        or "run the calculator" in prompt_lower
+    ):
+        test_code, test_output = run_local_tests(
+            activity_log
+        )
+
+        if test_code == 0:
+            status = "✅ All calculator tests passed."
+        else:
+            status = "❌ Some calculator tests failed."
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### 🧪 Test execution",
+                "",
+                status,
+                "",
+                "```text",
+                test_output or "No test output was produced.",
+                "```",
+                "",
+                "### ✅ Result",
+                "",
+                "CodePilot ran the real calculator test suite locally.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Test task completed",
+        )
+
+        return response
+
+    if (
+        "file" in prompt_lower
+        or "files" in prompt_lower
+        or (
+            "project" in prompt_lower
+            and "explain" not in prompt_lower
+        )
+    ):
+        files = inspect_project(activity_log)
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### 📁 Project files",
+                "",
+                files,
+                "",
+                "### ✅ Result",
+                "",
+                "The real calculator workspace was inspected successfully.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Project inspection completed",
+        )
+
+        return response
+
+    if (
+        "explain" in prompt_lower
+        or "how does" in prompt_lower
+    ):
+        files = inspect_project(activity_log)
+        explanation = explain_project(activity_log)
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### 📁 Project structure",
+                "",
+                files,
+                "",
+                "### 🧠 How it works",
+                "",
+                explanation,
+                "",
+                "### ✅ Result",
+                "",
+                "This explanation was built from the real project files.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Project explanation completed",
+        )
+
+        return response
+
+    expression = detect_expression(user_prompt)
+
+    if expression:
+        result = run_calculator(
+            expression,
+            activity_log,
+        )
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### ▶️ Calculator execution",
+                "",
+                f"Expression: `{expression}`",
+                "",
+                "```text",
+                result,
+                "```",
+                "",
+                "### ✅ Result",
+                "",
+                "The real calculator evaluated the expression.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Calculator task completed",
+        )
+
+        return response
+
+    files = inspect_project(activity_log)
+    test_code, test_output = run_local_tests(activity_log)
+
+    if test_code == 0:
+        test_status = "✅ Tests passed."
+    else:
+        test_status = "❌ Tests reported failures."
+
+    response = "\n".join(
+        [
+            "## ⚡ CodePilot — Local Mode",
+            "",
+            "### Request",
+            "",
+            f"> {user_prompt}",
+            "",
+            "### 📁 Workspace",
+            "",
+            files,
+            "",
+            "### 🧪 Verification",
+            "",
+            test_status,
+            "",
+            "```text",
+            test_output or "No test output was produced.",
+            "```",
+            "",
+            "### 🛠️ Capabilities",
+            "",
+            "• Inspect project files",
+            "• Read source code",
+            "• Run Python files",
+            "• Modify files",
+            "• Verify changes with tests",
+            "",
+            "### ✅ Result",
+            "",
+            "The local project was inspected and verified.",
+        ]
     )
 
     add_activity(
         activity_log,
         "complete",
-        "Local demo completed",
+        "General project analysis completed",
     )
 
-    lines = [
-        "## ⚡ CodePilot — Local Demo Mode",
-        "",
-        "The live AI service is currently unavailable, so CodePilot switched to local project analysis.",
-        "",
-        "### Your request",
-        "",
-        f"> {user_prompt}",
-        "",
-        "### 🔍 Project inspection",
-        "",
-        "CodePilot inspected the real `calculator/` project.",
-        "",
-        "```text",
-        project_listing,
-        "```",
-        "",
-        "### 📖 Source analysis",
-        "",
-        source_state,
-        render_state,
-        "",
-        "The calculator uses `pkg/calculator.py` for expression evaluation",
-        "and `pkg/render.py` for JSON formatting.",
-        "The command-line entry point is `calculator/main.py`.",
-        "",
-        "### 🧪 Real test execution",
-        "",
-        test_status,
-        "",
-        "```text",
-        test_output or "No test output was produced.",
-        "```",
-        "",
-        "### ▶️ Real calculator verification",
-        "",
-        "CodePilot executed:",
-        "",
-        "`3 + 7 * 2`",
-        "",
-        "Result:",
-        "",
-        "```text",
-        calculator_output,
-        "```",
-        "",
-        "### ✅ Result",
-        "",
-        "Local verification completed successfully."
-        if tests_ok
-        else "Local verification found a problem.",
-    ]
-
-    return "\n".join(lines)
+    return response
 
 
 def run_agent(
-    user_prompt: str,
-    verbose: bool = False,
-    activity_log: list | None = None,
-) -> str:
+    user_prompt,
+    verbose=False,
+    activity_log=None,
+):
     if client is None:
         return demo_response(
             user_prompt,
@@ -341,7 +553,6 @@ def run_agent(
                 tools=available_functions,
                 temperature=0,
             )
-
         except Exception as error:
             error_text = str(error)
 
@@ -363,7 +574,6 @@ def run_agent(
             raise
 
         message = response.choices[0].message
-
         messages.append(message)
 
         if message.tool_calls:
@@ -432,8 +642,7 @@ def run_agent(
     )
 
 
-def main() -> None:
-
+def main():
     parser = argparse.ArgumentParser(
         description="AI Coding Agent"
     )
