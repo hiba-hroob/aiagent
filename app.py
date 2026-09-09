@@ -1,4 +1,5 @@
 import streamlit as st
+from pathlib import Path
 
 from main import run_agent
 
@@ -9,6 +10,44 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+PROJECT_DIR = Path("calculator")
+
+
+# =========================================================
+# Helpers
+# =========================================================
+
+def get_project_files():
+    """Return real files from the calculator project."""
+    files = []
+
+    if not PROJECT_DIR.exists():
+        return files
+
+    for path in sorted(PROJECT_DIR.rglob("*")):
+        if ".venv" in path.parts or "__pycache__" in path.parts:
+            continue
+
+        if path.is_file():
+            files.append(path.relative_to(PROJECT_DIR))
+
+    return files
+
+
+def get_file_icon(path):
+    """Choose an icon based on file type."""
+    if path.suffix == ".py":
+        return "🐍"
+
+    if path.suffix in {".md", ".txt"}:
+        return "📄"
+
+    if path.suffix == ".json":
+        return "🧾"
+
+    return "📎"
+
 
 # =========================================================
 # CSS
@@ -27,8 +66,6 @@ st.markdown(
         padding-top: 1.5rem;
         padding-bottom: 2rem;
     }
-
-    /* Header */
 
     .topbar {
         display: flex;
@@ -84,8 +121,6 @@ st.markdown(
         font-weight: 600;
     }
 
-    /* Hero */
-
     .hero {
         padding: 35px 0 25px 0;
     }
@@ -101,15 +136,6 @@ st.markdown(
         color: #888;
         font-size: 16px;
         margin-top: 8px;
-    }
-
-    /* Cards */
-
-    .panel {
-        border: 1px solid rgba(128,128,128,.18);
-        border-radius: 18px;
-        padding: 20px;
-        background: rgba(128,128,128,.035);
     }
 
     .panel-title {
@@ -137,8 +163,6 @@ st.markdown(
         font-size: 13px;
     }
 
-    /* Welcome */
-
     .welcome {
         text-align: center;
         padding: 55px 25px 35px 25px;
@@ -159,8 +183,6 @@ st.markdown(
         margin-top: 7px;
     }
 
-    /* Activity */
-
     .activity {
         padding: 12px 14px;
         border-left: 3px solid #6d5dfc;
@@ -179,18 +201,10 @@ st.markdown(
         font-size: 13px;
     }
 
-    /* Quick actions */
-
-    .quick-title {
-        font-size: 14px;
-        font-weight: 700;
-        margin: 20px 0 10px 0;
-    }
-
-    /* Hide chat input border noise */
-
-    textarea {
-        border-radius: 14px !important;
+    .file-count {
+        color: #888;
+        font-size: 12px;
+        margin-bottom: 12px;
     }
 
     </style>
@@ -267,38 +281,75 @@ with workspace:
         unsafe_allow_html=True,
     )
 
+    project_files = get_project_files()
+
     st.markdown(
-        """
-        <div class="workspace-file">
-            📁 <b>calculator</b>
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;📄 main.py
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;📄 tests.py
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;📄 README.md
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;📁 pkg
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;&nbsp;&nbsp;📄 calculator.py
-        </div>
-
-        <div class="workspace-file">
-            &nbsp;&nbsp;&nbsp;&nbsp;📄 render.py
-        </div>
-        """,
+        f'<div class="file-count">{len(project_files)} files detected</div>',
         unsafe_allow_html=True,
     )
+
+    if not PROJECT_DIR.exists():
+
+        st.warning("calculator/ project not found.")
+
+    else:
+
+        folders = {}
+
+        for file_path in project_files:
+
+            parent = str(file_path.parent)
+
+            if parent not in folders:
+                folders[parent] = []
+
+            folders[parent].append(file_path)
+
+        root_files = folders.get(".", [])
+
+        if root_files:
+
+            for file_path in root_files:
+
+                icon = get_file_icon(file_path)
+
+                st.markdown(
+                    f"""
+                    <div class="workspace-file">
+                        {icon} {file_path.name}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        subfolders = sorted(
+            key for key in folders
+            if key != "."
+        )
+
+        for folder in subfolders:
+
+            st.markdown(
+                f"""
+                <div class="workspace-file">
+                    📁 <b>{folder}/</b>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            for file_path in folders[folder]:
+
+                icon = get_file_icon(file_path)
+
+                st.markdown(
+                    f"""
+                    <div class="workspace-file">
+                        &nbsp;&nbsp;{icon} {file_path.name}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     st.markdown("---")
 
@@ -315,6 +366,7 @@ with workspace:
     ]
 
     for icon, name in tools:
+
         st.markdown(
             f"""
             <div class="tool">
@@ -323,6 +375,16 @@ with workspace:
             """,
             unsafe_allow_html=True,
         )
+
+    st.markdown("---")
+
+    if st.button(
+        "🗑️ Clear Chat",
+        use_container_width=True,
+    ):
+        st.session_state.messages = []
+        st.session_state.activity = []
+        st.rerun()
 
 
 # =========================================================
@@ -336,8 +398,8 @@ with main_area:
         <div class="hero">
             <h1>Build. Debug. Ship. 🚀</h1>
             <p>
-                Tell CodePilot what you want to change in your project.
-                Your AI coding agent will investigate and act.
+                Tell CodePilot what you want to change.
+                Your coding agent will inspect, reason, test, and respond.
             </p>
         </div>
         """,
@@ -360,7 +422,7 @@ with main_area:
 
                 <div class="welcome-text">
                     Ask CodePilot to inspect, explain, debug,
-                    or modify your codebase.
+                    test, or modify your codebase.
                 </div>
 
             </div>
@@ -371,44 +433,61 @@ with main_area:
     for message in st.session_state.messages:
 
         with st.chat_message(message["role"]):
-
             st.markdown(message["content"])
 
-
-    st.markdown(
-        '<div class="quick-title">Quick actions</div>',
-        unsafe_allow_html=True,
+    prompt = st.chat_input(
+        "Ask CodePilot to inspect, fix, or modify your project..."
     )
 
-    quick1, quick2, quick3 = st.columns(3)
+    if prompt:
 
-    with quick1:
-        if st.button(
-            "🐛 Fix a bug",
-            use_container_width=True,
-        ):
-            st.session_state.quick_prompt = (
-                "Inspect the calculator project and find "
-                "any bug that should be fixed."
+        st.session_state.messages.append(
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        )
+
+        activity_log = []
+
+        try:
+
+            with st.spinner("⚡ CodePilot is working..."):
+
+                response = run_agent(
+                    prompt,
+                    verbose=False,
+                    activity_log=activity_log,
+                )
+
+            st.session_state.activity = activity_log
+
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": response,
+                }
             )
 
-    with quick2:
-        if st.button(
-            "🔍 Explain code",
-            use_container_width=True,
-        ):
-            st.session_state.quick_prompt = (
-                "Explain how the calculator project works."
+            st.rerun()
+
+        except Exception as error:
+
+            st.session_state.activity = activity_log
+
+            error_message = (
+                "⚠️ **Agent unavailable right now.**\n\n"
+                f"`{error}`"
             )
 
-    with quick3:
-        if st.button(
-            "🧪 Run tests",
-            use_container_width=True,
-        ):
-            st.session_state.quick_prompt = (
-                "Run the calculator tests and report the results."
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": error_message,
+                }
             )
+
+            st.rerun()
 
 
 # =========================================================
@@ -424,9 +503,7 @@ with activity_area:
 
     if not st.session_state.activity:
 
-        st.caption(
-            "Agent activity will appear here."
-        )
+        st.caption("Agent activity will appear here.")
 
         st.markdown(
             """
@@ -477,75 +554,3 @@ with activity_area:
             elif item_type == "error":
 
                 st.error(message)
-
-
-# =========================================================
-# Chat input
-# =========================================================
-
-prompt = st.chat_input(
-    "Ask CodePilot to inspect, fix, or modify your project..."
-)
-
-
-# Quick action support
-
-if "quick_prompt" in st.session_state:
-
-    prompt = st.session_state.quick_prompt
-
-    del st.session_state.quick_prompt
-
-
-# =========================================================
-# Run agent
-# =========================================================
-
-if prompt:
-
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    )
-
-    activity_log = []
-
-    try:
-
-        with st.spinner("⚡ CodePilot is working..."):
-
-            response = run_agent(
-                prompt,
-                verbose=False,
-                activity_log=activity_log,
-            )
-
-        st.session_state.activity = activity_log
-
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": response,
-            }
-        )
-
-        st.rerun()
-
-    except Exception as error:
-
-        st.session_state.activity = activity_log
-
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": (
-                    "⚠️ **Agent unavailable right now.**\n\n"
-                    f"`{error}`"
-                ),
-            }
-        )
-
-        st.rerun()
-
