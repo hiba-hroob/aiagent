@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 
 from dotenv import load_dotenv
@@ -21,64 +20,83 @@ client = OpenAI(
     api_key=api_key,
 )
 
-parser = argparse.ArgumentParser(description="Chatbot")
-parser.add_argument("user_prompt", type=str, help="User prompt")
-parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
-args = parser.parse_args()
 
-messages = [
-    {"role": "system", "content": system_prompt},
-    {"role": "user", "content": args.user_prompt},
-]
+def run_agent(user_prompt: str, verbose: bool = False) -> str:
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
 
-for _ in range(20):
-    response = client.chat.completions.create(
-        model="openrouter/free",
-        messages=messages,
-        tools=available_functions,
-        temperature=0,
+    for _ in range(20):
+        response = client.chat.completions.create(
+            model="openrouter/free",
+            messages=messages,
+            tools=available_functions,
+            temperature=0,
+        )
+
+        message = response.choices[0].message
+
+        # Keep the assistant response in the conversation.
+        messages.append(message)
+
+        # The agent wants to use one or more tools.
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                result_message = call_function(
+                    tool_call,
+                    verbose=verbose,
+                )
+
+                if not result_message.get("content"):
+                    raise RuntimeError("Tool call returned no content")
+
+                # Give the tool result back to the agent.
+                messages.append(result_message)
+
+                if verbose:
+                    print(f"-> {result_message['content']}")
+
+            # Continue the loop so the agent can inspect
+            # the tool result and decide what to do next.
+            continue
+
+        # No more tools means the agent has finished.
+        return message.content or ""
+
+    raise RuntimeError(
+        "Maximum iterations reached without a final response."
     )
 
-    message = response.choices[0].message
-    messages.append(message)
 
-    if message.tool_calls:
-        for tool_call in message.tool_calls:
-            result_message = call_function(tool_call, args.verbose)
+def main():
+    parser = argparse.ArgumentParser(description="AI Coding Agent")
 
-            if not result_message.get("content"):
-                raise RuntimeError("Tool call returned no content")
+    parser.add_argument(
+        "user_prompt",
+        type=str,
+        help="User prompt",
+    )
 
-            messages.append(result_message)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
 
-            if args.verbose:
-                print(f"-> {result_message['content']}")
-    else:
-        print("Final response:")
-        print(message.content)
-        break
-else:
-    print("Maximum iterations reached without a final response.")
-    exit(1)
+    args = parser.parse_args()
 
-if response.usage is None:
-    raise RuntimeError("Response usage is missing")
+    if args.verbose:
+        print(f"User prompt: {args.user_prompt}")
 
-message = response.choices[0].message
+    final_response = run_agent(
+        args.user_prompt,
+        verbose=args.verbose,
+    )
 
-if args.verbose:
-    print(f"User prompt: {args.user_prompt}")
-    print(f"Prompt tokens: {response.usage.prompt_tokens}")
-    print(f"Response tokens: {response.usage.completion_tokens}")
+    print("Final response:")
+    print(final_response)
 
-if message.tool_calls:
-    for tool_call in message.tool_calls:
-        result_message = call_function(tool_call, args.verbose)
 
-        if not result_message.get("content"):
-            raise RuntimeError("Tool call returned no content")
-
-        if args.verbose:
-            print(f"-> {result_message['content']}")
-else:
-    print(message.content)
+if __name__ == "__main__":
+    main()

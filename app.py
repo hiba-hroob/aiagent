@@ -1,6 +1,7 @@
+
 import streamlit as st
-import subprocess
-import sys
+from main import run_agent
+
 
 st.set_page_config(
     page_title="CodePilot",
@@ -8,40 +9,42 @@ st.set_page_config(
     layout="wide",
 )
 
-# ---------- Styling ----------
+
+# -----------------------------
+# Page styling
+# -----------------------------
 
 st.markdown(
     """
     <style>
-    .main-title {
-        font-size: 42px;
-        font-weight: 700;
-        margin-bottom: 0;
-    }
+        .main-title {
+            font-size: 42px;
+            font-weight: 700;
+            margin-bottom: 0;
+        }
 
-    .subtitle {
-        color: #888;
-        font-size: 18px;
-        margin-bottom: 25px;
-    }
-
-    .status {
-        padding: 10px 15px;
-        border-radius: 10px;
-        background: rgba(0, 128, 0, 0.08);
-        margin-bottom: 15px;
-    }
+        .subtitle {
+            color: #888;
+            font-size: 18px;
+            margin-bottom: 25px;
+        }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# ---------- Session State ----------
+
+# -----------------------------
+# Session state
+# -----------------------------
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ---------- Header ----------
+
+# -----------------------------
+# Header
+# -----------------------------
 
 st.markdown(
     '<div class="main-title">🤖 CodePilot</div>',
@@ -53,7 +56,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---------- Sidebar ----------
+
+# -----------------------------
+# Sidebar
+# -----------------------------
 
 with st.sidebar:
     st.header("⚙️ Agent")
@@ -84,20 +90,28 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# ---------- Conversation ----------
+
+# -----------------------------
+# Conversation history
+# -----------------------------
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# ---------- Chat Input ----------
+
+# -----------------------------
+# Chat input
+# -----------------------------
 
 user_prompt = st.chat_input(
     "Ask CodePilot to inspect, fix, or modify your project..."
 )
 
+
 if user_prompt:
-    # Show user message
+
+    # Display user message
     st.session_state.messages.append(
         {
             "role": "user",
@@ -108,47 +122,34 @@ if user_prompt:
     with st.chat_message("user"):
         st.markdown(user_prompt)
 
-    # Run agent
+
+    # Run the AI agent
     with st.chat_message("assistant"):
-        with st.spinner("Agent is working..."):
+
+        with st.spinner("🤖 Agent is working..."):
+
             try:
-                result = subprocess.run(
-                    [sys.executable, "main.py", user_prompt],
-                    capture_output=True,
-                    text=True,
-                    timeout=120,
+                response = run_agent(
+                    user_prompt,
+                    verbose=True,
                 )
 
-                output = result.stdout.strip()
+                if not response:
+                    response = "The agent returned no response."
 
-                if result.stderr:
-                    output += "\n\n```text\n" + result.stderr.strip() + "\n```"
-
-                if not output:
-                    output = "The agent returned no output."
-
-                st.markdown(output)
+                st.markdown(response)
 
                 st.session_state.messages.append(
                     {
                         "role": "assistant",
-                        "content": output,
-                    }
-                )
-
-            except subprocess.TimeoutExpired:
-                error_message = "⏱️ The agent took too long to respond."
-                st.error(error_message)
-
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "content": error_message,
+                        "content": response,
                     }
                 )
 
             except Exception as e:
-                error_message = f"❌ Something went wrong: {e}"
+
+                error_message = f"❌ Agent error: {e}"
+
                 st.error(error_message)
 
                 st.session_state.messages.append(
@@ -157,3 +158,4 @@ if user_prompt:
                         "content": error_message,
                     }
                 )
+
