@@ -26,7 +26,12 @@ if api_key:
     )
 
 
-def add_activity(activity_log, activity_type, message, tool=None):
+def add_activity(
+    activity_log,
+    activity_type,
+    message,
+    tool=None,
+):
     if activity_log is None:
         return
 
@@ -48,11 +53,16 @@ def get_project_files():
     files = []
 
     for path in sorted(PROJECT_DIR.rglob("*")):
-        if ".venv" in path.parts or "__pycache__" in path.parts:
+        if ".venv" in path.parts:
+            continue
+
+        if "__pycache__" in path.parts:
             continue
 
         if path.is_file():
-            files.append(str(path.relative_to(PROJECT_DIR)))
+            files.append(
+                str(path.relative_to(PROJECT_DIR))
+            )
 
     return files
 
@@ -68,10 +78,11 @@ def inspect_project(activity_log=None):
     files = get_project_files()
 
     if not files:
-        result = "No project files were found."
+        output = "No project files were found."
     else:
-        result = "\n".join(
-            f"- {file_path}" for file_path in files
+        output = "\n".join(
+            f"- {file_path}"
+            for file_path in files
         )
 
     add_activity(
@@ -81,10 +92,13 @@ def inspect_project(activity_log=None):
         "get_files_info",
     )
 
-    return result
+    return output
 
 
-def read_project_file(file_path, activity_log=None):
+def read_project_file(
+    file_path,
+    activity_log=None,
+):
     add_activity(
         activity_log,
         "tool",
@@ -100,11 +114,16 @@ def read_project_file(file_path, activity_log=None):
     except ValueError:
         return "Error: file is outside the project."
 
-    if not target.exists() or not target.is_file():
+    if not target.exists():
         return f"File not found: {file_path}"
 
+    if not target.is_file():
+        return f"Not a file: {file_path}"
+
     try:
-        content = target.read_text(encoding="utf-8")
+        content = target.read_text(
+            encoding="utf-8"
+        )
     except UnicodeDecodeError:
         return f"Could not read {file_path}."
 
@@ -143,8 +162,10 @@ def run_local_tests(activity_log=None):
                 timeout=30,
             )
             break
+
         except FileNotFoundError:
             continue
+
         except subprocess.TimeoutExpired:
             add_activity(
                 activity_log,
@@ -155,18 +176,28 @@ def run_local_tests(activity_log=None):
 
     if result is None:
         message = "Python executable was not found."
-        add_activity(activity_log, "error", message)
+
+        add_activity(
+            activity_log,
+            "error",
+            message,
+        )
+
         return 127, message
 
-    parts = []
+    output_parts = []
 
     if result.stdout.strip():
-        parts.append(result.stdout.strip())
+        output_parts.append(
+            result.stdout.strip()
+        )
 
     if result.stderr.strip():
-        parts.append(result.stderr.strip())
+        output_parts.append(
+            result.stderr.strip()
+        )
 
-    output = "\n".join(parts)
+    output = "\n".join(output_parts)
 
     if result.returncode == 0:
         status = "All calculator tests passed."
@@ -183,7 +214,21 @@ def run_local_tests(activity_log=None):
     return result.returncode, output
 
 
-def run_calculator(expression, activity_log=None):
+def run_calculator(
+    expression,
+    activity_log=None,
+):
+    expression = expression.strip()
+
+    if not expression:
+        return "No expression was provided."
+
+    if not re.fullmatch(
+        r"[0-9+\-*/().\s]+",
+        expression,
+    ):
+        return "The expression contains unsupported characters."
+
     add_activity(
         activity_log,
         "tool",
@@ -208,8 +253,10 @@ def run_calculator(expression, activity_log=None):
                 timeout=15,
             )
             break
+
         except FileNotFoundError:
             continue
+
         except subprocess.TimeoutExpired:
             return "Calculator execution timed out."
 
@@ -223,6 +270,8 @@ def run_calculator(expression, activity_log=None):
             or "Calculator execution failed."
         )
 
+    output = result.stdout.strip()
+
     add_activity(
         activity_log,
         "tool_result",
@@ -230,12 +279,13 @@ def run_calculator(expression, activity_log=None):
         "run_python_file",
     )
 
-    return result.stdout.strip()
+    return output
 
 
 def detect_expression(text):
     matches = re.findall(
-        r"(?<!\w)(?:\d+(?:\.\d+)?\s*)"
+        r"(?<!\w)"
+        r"(?:\d+(?:\.\d+)?\s*)"
         r"(?:[+\-*/]\s*(?:\d+(?:\.\d+)?\s*))+",
         text,
     )
@@ -266,36 +316,39 @@ def explain_project(activity_log=None):
 
     if "class Calculator" in calculator_source:
         explanation.append(
-            "• `pkg/calculator.py` contains the Calculator class "
-            "responsible for evaluating expressions."
+            "• pkg/calculator.py contains the Calculator "
+            "class responsible for evaluating expressions."
         )
     else:
         explanation.append(
-            "• `pkg/calculator.py` contains the calculator logic."
+            "• pkg/calculator.py contains the calculator logic."
         )
 
     if "json.dumps" in render_source:
         explanation.append(
-            "• `pkg/render.py` formats the result as JSON."
+            "• pkg/render.py formats the calculator result as JSON."
         )
     else:
         explanation.append(
-            "• `pkg/render.py` handles result formatting."
+            "• pkg/render.py handles output formatting."
         )
 
     if "sys.argv" in main_source:
         explanation.append(
-            "• `calculator/main.py` is the command-line entry point."
+            "• calculator/main.py is the command-line entry point."
         )
     else:
         explanation.append(
-            "• `calculator/main.py` is the application entry point."
+            "• calculator/main.py is the application entry point."
         )
 
     return "\n".join(explanation)
 
 
-def demo_response(user_prompt, activity_log=None):
+def demo_response(
+    user_prompt,
+    activity_log=None,
+):
     add_activity(
         activity_log,
         "start",
@@ -304,11 +357,90 @@ def demo_response(user_prompt, activity_log=None):
 
     prompt_lower = user_prompt.lower()
 
-    if (
+    wants_tests = (
         "test" in prompt_lower
         or "tests" in prompt_lower
         or "run the calculator" in prompt_lower
-    ):
+    )
+
+    wants_explanation = (
+        "explain" in prompt_lower
+        or "how does" in prompt_lower
+        or "how the calculator" in prompt_lower
+        or "how the application" in prompt_lower
+    )
+
+    wants_files = (
+        "file" in prompt_lower
+        or "files" in prompt_lower
+        or "inspect" in prompt_lower
+        or "project structure" in prompt_lower
+    )
+
+    expression = detect_expression(
+        user_prompt
+    )
+
+    if wants_tests and wants_explanation:
+
+        files = inspect_project(
+            activity_log
+        )
+
+        explanation = explain_project(
+            activity_log
+        )
+
+        test_code, test_output = run_local_tests(
+            activity_log
+        )
+
+        if test_code == 0:
+            status = "✅ All calculator tests passed."
+        else:
+            status = "❌ Some calculator tests failed."
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### 🔍 Project inspection",
+                "",
+                files,
+                "",
+                "### 🧠 How the application works",
+                "",
+                explanation,
+                "",
+                "### 🧪 Test execution",
+                "",
+                status,
+                "",
+                "```text",
+                test_output or "No test output was produced.",
+                "```",
+                "",
+                "### ✅ Result",
+                "",
+                "CodePilot inspected the real project, explained its structure,",
+                "and ran the real calculator tests locally.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Inspection, explanation, and testing completed",
+        )
+
+        return response
+
+    if wants_tests:
+
         test_code, test_output = run_local_tests(
             activity_log
         )
@@ -348,48 +480,15 @@ def demo_response(user_prompt, activity_log=None):
 
         return response
 
-    if (
-        "file" in prompt_lower
-        or "files" in prompt_lower
-        or (
-            "project" in prompt_lower
-            and "explain" not in prompt_lower
-        )
-    ):
-        files = inspect_project(activity_log)
+    if wants_explanation:
 
-        response = "\n".join(
-            [
-                "## ⚡ CodePilot — Local Mode",
-                "",
-                "### Request",
-                "",
-                f"> {user_prompt}",
-                "",
-                "### 📁 Project files",
-                "",
-                files,
-                "",
-                "### ✅ Result",
-                "",
-                "The real calculator workspace was inspected successfully.",
-            ]
+        files = inspect_project(
+            activity_log
         )
 
-        add_activity(
-            activity_log,
-            "complete",
-            "Project inspection completed",
+        explanation = explain_project(
+            activity_log
         )
-
-        return response
-
-    if (
-        "explain" in prompt_lower
-        or "how does" in prompt_lower
-    ):
-        files = inspect_project(activity_log)
-        explanation = explain_project(activity_log)
 
         response = "\n".join(
             [
@@ -421,9 +520,40 @@ def demo_response(user_prompt, activity_log=None):
 
         return response
 
-    expression = detect_expression(user_prompt)
+    if wants_files:
+
+        files = inspect_project(
+            activity_log
+        )
+
+        response = "\n".join(
+            [
+                "## ⚡ CodePilot — Local Mode",
+                "",
+                "### Request",
+                "",
+                f"> {user_prompt}",
+                "",
+                "### 📁 Project files",
+                "",
+                files,
+                "",
+                "### ✅ Result",
+                "",
+                "The real calculator workspace was inspected successfully.",
+            ]
+        )
+
+        add_activity(
+            activity_log,
+            "complete",
+            "Project inspection completed",
+        )
+
+        return response
 
     if expression:
+
         result = run_calculator(
             expression,
             activity_log,
@@ -459,13 +589,18 @@ def demo_response(user_prompt, activity_log=None):
 
         return response
 
-    files = inspect_project(activity_log)
-    test_code, test_output = run_local_tests(activity_log)
+    files = inspect_project(
+        activity_log
+    )
+
+    test_code, test_output = run_local_tests(
+        activity_log
+    )
 
     if test_code == 0:
-        test_status = "✅ Tests passed."
+        status = "✅ Tests passed."
     else:
-        test_status = "❌ Tests reported failures."
+        status = "❌ Tests reported failures."
 
     response = "\n".join(
         [
@@ -481,19 +616,11 @@ def demo_response(user_prompt, activity_log=None):
             "",
             "### 🧪 Verification",
             "",
-            test_status,
+            status,
             "",
             "```text",
             test_output or "No test output was produced.",
             "```",
-            "",
-            "### 🛠️ Capabilities",
-            "",
-            "• Inspect project files",
-            "• Read source code",
-            "• Run Python files",
-            "• Modify files",
-            "• Verify changes with tests",
             "",
             "### ✅ Result",
             "",
@@ -553,7 +680,9 @@ def run_agent(
                 tools=available_functions,
                 temperature=0,
             )
+
         except Exception as error:
+
             error_text = str(error)
 
             if (
@@ -574,13 +703,16 @@ def run_agent(
             raise
 
         message = response.choices[0].message
+
         messages.append(message)
 
         if message.tool_calls:
 
             for tool_call in message.tool_calls:
 
-                function_name = tool_call.function.name
+                function_name = (
+                    tool_call.function.name
+                )
 
                 add_activity(
                     activity_log,
@@ -643,6 +775,7 @@ def run_agent(
 
 
 def main():
+
     parser = argparse.ArgumentParser(
         description="AI Coding Agent"
     )
