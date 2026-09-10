@@ -1,210 +1,281 @@
-import streamlit as st
+import re
 from pathlib import Path
+
+import streamlit as st
 
 from main import run_agent
 
 
 st.set_page_config(
     page_title="CodePilot",
-    page_icon="⚡",
+    page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 PROJECT_DIR = Path("calculator")
 
 
-# =========================================================
-# Helpers
-# =========================================================
-
 def get_project_files():
-    """Return real files from the calculator project."""
+    if not PROJECT_DIR.exists():
+        return []
+
     files = []
 
-    if not PROJECT_DIR.exists():
-        return files
-
     for path in sorted(PROJECT_DIR.rglob("*")):
-        if ".venv" in path.parts or "__pycache__" in path.parts:
+        if ".venv" in path.parts:
+            continue
+
+        if "__pycache__" in path.parts:
             continue
 
         if path.is_file():
-            files.append(path.relative_to(PROJECT_DIR))
+            files.append(
+                str(path.relative_to(PROJECT_DIR))
+            )
 
     return files
 
 
-def get_file_icon(path):
-    """Choose an icon based on file type."""
-    if path.suffix == ".py":
+def get_file_icon(file_name):
+    suffix = Path(file_name).suffix.lower()
+
+    if suffix == ".py":
         return "🐍"
 
-    if path.suffix in {".md", ".txt"}:
-        return "📄"
+    if suffix == ".md":
+        return "📘"
 
-    if path.suffix == ".json":
-        return "🧾"
+    if suffix == ".txt":
+        return "📄"
 
     return "📎"
 
 
-# =========================================================
+def get_activity_tools():
+    tools = []
+
+    for item in st.session_state.activity:
+        if item.get("type") == "tool":
+            tool = item.get("tool")
+
+            if tool and tool not in tools:
+                tools.append(tool)
+
+    return tools
+
+
+def extract_test_count(text):
+    if not text:
+        return None
+
+    match = re.search(
+        r"Ran\s+(\d+)\s+tests?",
+        text,
+        re.IGNORECASE,
+    )
+
+    if match:
+        return match.group(1)
+
+    return None
+
+
+# ------------------------------------------------------------
+# Session state
+# ------------------------------------------------------------
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+if "activity" not in st.session_state:
+    st.session_state.activity = []
+
+if "mission_id" not in st.session_state:
+    st.session_state.mission_id = 1
+
+
+# ------------------------------------------------------------
 # CSS
-# =========================================================
+# ------------------------------------------------------------
 
 st.markdown(
     """
     <style>
 
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu {
+        visibility: hidden;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+
+    header {
+        visibility: hidden;
+    }
+
+    .stApp {
+        background-color: #0b0d12;
+    }
 
     .block-container {
-        max-width: 1450px;
+        max-width: 1500px;
         padding-top: 1.5rem;
-        padding-bottom: 2rem;
+        padding-bottom: 1.5rem;
     }
 
-    .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 8px 4px 22px 4px;
-        border-bottom: 1px solid rgba(128,128,128,.18);
-        margin-bottom: 25px;
-    }
-
-    .brand {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .brand-icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 13px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 23px;
-        background: linear-gradient(
-            135deg,
-            #6d5dfc,
-            #9b6cff
-        );
-        color: white;
-        box-shadow: 0 8px 25px rgba(109,93,252,.25);
-    }
-
-    .brand-name {
-        font-size: 25px;
+    .title-text {
+        font-size: 46px;
         font-weight: 800;
-        line-height: 1;
+        margin-bottom: 4px;
     }
 
-    .brand-subtitle {
+    .subtitle-text {
+        color: #8b91a1;
+        font-size: 15px;
+        margin-bottom: 18px;
+    }
+
+    .mission-text {
+        color: #9a86ff;
         font-size: 12px;
-        color: #888;
-        margin-top: 5px;
+        font-weight: 700;
+        letter-spacing: 1px;
     }
 
-    .online {
-        padding: 8px 14px;
-        border-radius: 30px;
-        background: rgba(46,204,113,.10);
-        border: 1px solid rgba(46,204,113,.22);
-        color: #2ecc71;
-        font-size: 13px;
-        font-weight: 600;
+    .core {
+        text-align: center;
+        padding: 32px 10px;
+        border: 1px solid #262b38;
+        border-radius: 24px;
+        background-color: #11141c;
+        margin: 15px 0;
     }
 
-    .hero {
-        padding: 35px 0 25px 0;
+    .core-icon {
+        font-size: 54px;
     }
 
-    .hero h1 {
-        font-size: 38px;
-        margin: 0;
+    .core-title {
+        font-size: 17px;
         font-weight: 800;
-        letter-spacing: -1px;
-    }
-
-    .hero p {
-        color: #888;
-        font-size: 16px;
         margin-top: 8px;
     }
 
-    .panel-title {
-        font-size: 15px;
-        font-weight: 750;
-        margin-bottom: 15px;
+    .core-status {
+        color: #8c75ff;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        margin-top: 5px;
     }
 
-    .workspace-file {
-        padding: 8px 10px;
-        border-radius: 8px;
-        margin: 3px 0;
-        font-size: 13px;
-    }
-
-    .workspace-file:hover {
-        background: rgba(109,93,252,.10);
-    }
-
-    .tool {
-        padding: 10px 12px;
-        border-radius: 10px;
-        background: rgba(128,128,128,.06);
-        margin: 7px 0;
-        font-size: 13px;
-    }
-
-    .welcome {
+    .stage {
         text-align: center;
-        padding: 55px 25px 35px 25px;
+        padding: 10px 4px;
+        border-radius: 10px;
+        background-color: #12151d;
+        border: 1px solid #242936;
+        color: #747c8e;
+        font-size: 10px;
+        font-weight: 700;
     }
 
-    .welcome-icon {
-        font-size: 50px;
-        margin-bottom: 10px;
+    .stage-done {
+        color: #64dfb0;
+        border-color: #28483e;
+        background-color: #101c18;
     }
 
-    .welcome-title {
-        font-size: 25px;
-        font-weight: 750;
+    .stage-active {
+        color: #b0a1ff;
+        border-color: #4a3d83;
+        background-color: #19162a;
     }
 
-    .welcome-text {
-        color: #888;
+    .panel-title {
+        font-size: 11px;
+        font-weight: 800;
+        color: #747d90;
+        letter-spacing: 1.5px;
+        margin-bottom: 8px;
+    }
+
+    .file-item {
+        padding: 7px 8px;
+        margin-bottom: 4px;
+        border-radius: 8px;
+        background-color: #11141b;
+        color: #d4d8e2;
+        font-size: 11px;
+    }
+
+    .activity-item {
+        padding: 9px;
+        margin-bottom: 7px;
+        border-left: 3px solid #7d64ff;
+        border-radius: 0 8px 8px 0;
+        background-color: #131620;
+    }
+
+    .activity-name {
+        font-size: 10px;
+        font-weight: 800;
+        color: #e2e5ed;
+    }
+
+    .activity-message {
+        font-size: 9px;
+        color: #7d8596;
+        margin-top: 3px;
+    }
+
+    .verify-box {
+        padding: 14px;
+        margin-top: 10px;
+        border-radius: 12px;
+        background-color: #102019;
+        border: 1px solid #28503e;
+    }
+
+    .verify-title {
+        color: #67e3b2;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+    }
+
+    .verify-main {
+        color: #f1fff8;
+        font-size: 16px;
+        font-weight: 800;
+        margin-top: 5px;
+    }
+
+    .empty-box {
+        text-align: center;
+        padding: 35px 15px;
+        border: 1px dashed #29303d;
+        border-radius: 16px;
+        background-color: #0f1218;
+    }
+
+    .empty-icon {
+        font-size: 32px;
+    }
+
+    .empty-title {
+        color: #e7eaf1;
+        font-size: 18px;
+        font-weight: 800;
         margin-top: 7px;
     }
 
-    .activity {
-        padding: 12px 14px;
-        border-left: 3px solid #6d5dfc;
-        margin: 8px 0;
-        background: rgba(109,93,252,.05);
-        border-radius: 0 10px 10px 0;
-        font-size: 13px;
-    }
-
-    .activity-success {
-        padding: 12px 14px;
-        border-left: 3px solid #2ecc71;
-        margin: 8px 0;
-        background: rgba(46,204,113,.06);
-        border-radius: 0 10px 10px 0;
-        font-size: 13px;
-    }
-
-    .file-count {
-        color: #888;
-        font-size: 12px;
-        margin-bottom: 12px;
+    .empty-text {
+        color: #727b8d;
+        font-size: 11px;
+        margin-top: 5px;
     }
 
     </style>
@@ -213,230 +284,244 @@ st.markdown(
 )
 
 
-# =========================================================
-# State
-# =========================================================
+# ------------------------------------------------------------
+# Header
+# ------------------------------------------------------------
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+header_left, header_right = st.columns(
+    [5, 1],
+    vertical_alignment="center",
+)
 
-if "activity" not in st.session_state:
-    st.session_state.activity = []
+with header_left:
+    st.markdown(
+        "# 🧬 CodePilot"
+    )
+
+    st.caption(
+        "Autonomous coding intelligence"
+    )
+
+with header_right:
+    st.success(
+        "● READY"
+    )
 
 
-# =========================================================
-# Top bar
-# =========================================================
+st.divider()
 
 st.markdown(
-    """
-    <div class="topbar">
+    f"**MISSION #{st.session_state.mission_id:03d}**"
+)
 
-        <div class="brand">
-
-            <div class="brand-icon">
-                ⚡
-            </div>
-
-            <div>
-                <div class="brand-name">
-                    CodePilot
-                </div>
-
-                <div class="brand-subtitle">
-                    Autonomous AI Coding Engineer
-                </div>
-            </div>
-
-        </div>
-
-        <div class="online">
-            ● Agent Ready
-        </div>
-
-    </div>
-    """,
-    unsafe_allow_html=True,
+st.caption(
+    "UNDERSTAND  •  SCAN  •  READ  •  TEST  •  PROVE"
 )
 
 
-# =========================================================
-# Layout
-# =========================================================
+# ------------------------------------------------------------
+# Main layout
+# ------------------------------------------------------------
 
-workspace, main_area, activity_area = st.columns(
-    [1, 2.5, 1.2],
+left, center, right = st.columns(
+    [1, 2.2, 1],
     gap="large",
 )
 
 
-# =========================================================
-# Workspace
-# =========================================================
+# ------------------------------------------------------------
+# Left: project
+# ------------------------------------------------------------
 
-with workspace:
+with left:
 
     st.markdown(
-        '<div class="panel-title">📁 WORKSPACE</div>',
+        '<div class="panel-title">PROJECT DNA</div>',
         unsafe_allow_html=True,
     )
 
-    project_files = get_project_files()
+    files = get_project_files()
 
-    st.markdown(
-        f'<div class="file-count">{len(project_files)} files detected</div>',
-        unsafe_allow_html=True,
-    )
+    if files:
 
-    if not PROJECT_DIR.exists():
-
-        st.warning("calculator/ project not found.")
-
-    else:
-
-        folders = {}
-
-        for file_path in project_files:
-
-            parent = str(file_path.parent)
-
-            if parent not in folders:
-                folders[parent] = []
-
-            folders[parent].append(file_path)
-
-        root_files = folders.get(".", [])
-
-        if root_files:
-
-            for file_path in root_files:
-
-                icon = get_file_icon(file_path)
-
-                st.markdown(
-                    f"""
-                    <div class="workspace-file">
-                        {icon} {file_path.name}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-        subfolders = sorted(
-            key for key in folders
-            if key != "."
-        )
-
-        for folder in subfolders:
+        for file_path in files:
 
             st.markdown(
                 f"""
-                <div class="workspace-file">
-                    📁 <b>{folder}/</b>
+                <div class="file-item">
+                    {get_file_icon(file_path)} {file_path}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            for file_path in folders[folder]:
+    else:
+        st.warning(
+            "calculator/ directory not found."
+        )
 
-                icon = get_file_icon(file_path)
-
-                st.markdown(
-                    f"""
-                    <div class="workspace-file">
-                        &nbsp;&nbsp;{icon} {file_path.name}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-    st.markdown("---")
+    st.markdown("")
 
     st.markdown(
-        '<div class="panel-title">🛠️ AGENT TOOLS</div>',
+        '<div class="panel-title">AGENT CAPABILITIES</div>',
         unsafe_allow_html=True,
     )
 
-    tools = [
-        ("🔍", "Inspect files"),
-        ("📖", "Read code"),
-        ("▶️", "Run Python"),
-        ("✏️", "Write files"),
+    capabilities = [
+        "🔍 Inspect project",
+        "📖 Read source",
+        "🧪 Run tests",
+        "✏️ Modify files",
     ]
 
-    for icon, name in tools:
+    for capability in capabilities:
+        st.write(capability)
 
-        st.markdown(
-            f"""
-            <div class="tool">
-                {icon} &nbsp; {name}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("---")
+    st.markdown("")
 
     if st.button(
-        "🗑️ Clear Chat",
+        "↻ New mission",
         use_container_width=True,
     ):
+
         st.session_state.messages = []
         st.session_state.activity = []
+        st.session_state.mission_id += 1
+
         st.rerun()
 
 
-# =========================================================
-# Main chat
-# =========================================================
+# ------------------------------------------------------------
+# Center
+# ------------------------------------------------------------
 
-with main_area:
+with center:
+
+    st.markdown(
+        '<div class="panel-title">MISSION CONTROL</div>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         """
-        <div class="hero">
-            <h1>Build. Debug. Ship. 🚀</h1>
-            <p>
-                Tell CodePilot what you want to change.
-                Your coding agent will inspect, reason, test, and respond.
-            </p>
+        <div class="title-text">
+            Give it a problem.<br>
+            Get proof.
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if not st.session_state.messages:
+    st.markdown(
+        """
+        <div class="subtitle-text">
+            CodePilot investigates software tasks,
+            uses its tools, and verifies the result.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        st.markdown(
-            """
-            <div class="welcome">
+    current_tools = get_activity_tools()
 
-                <div class="welcome-icon">
-                    ⚡
-                </div>
+    if any(
+        item.get("type") == "complete"
+        for item in st.session_state.activity
+    ):
+        core_state = "VERIFIED"
+    elif "run_python_file" in current_tools:
+        core_state = "TESTING"
+    elif "get_file_content" in current_tools:
+        core_state = "READING"
+    elif "get_files_info" in current_tools:
+        core_state = "SCANNING"
+    else:
+        core_state = "READY"
 
-                <div class="welcome-title">
-                    What are we building today?
-                </div>
+    st.markdown(
+        f"""
+        <div class="core">
 
-                <div class="welcome-text">
-                    Ask CodePilot to inspect, explain, debug,
-                    test, or modify your codebase.
-                </div>
-
+            <div class="core-icon">
+                🧬
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+
+            <div class="core-title">
+                MISSION CORE
+            </div>
+
+            <div class="core-status">
+                {core_state}
+            </div>
+
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    stages = [
+        ("UNDERSTAND", None),
+        ("SCAN", "get_files_info"),
+        ("READ", "get_file_content"),
+        ("TEST", "run_python_file"),
+        ("PROVE", None),
+    ]
+
+    stage_columns = st.columns(5)
+
+    completed = any(
+        item.get("type") == "complete"
+        for item in st.session_state.activity
+    )
+
+    for index, (stage_name, required_tool) in enumerate(stages):
+
+        with stage_columns[index]:
+
+            if stage_name == "UNDERSTAND":
+                stage_class = (
+                    "stage-active"
+                    if st.session_state.activity
+                    else ""
+                )
+
+            elif stage_name == "PROVE":
+                stage_class = (
+                    "stage-done"
+                    if completed
+                    else ""
+                )
+
+            else:
+                stage_class = (
+                    "stage-done"
+                    if required_tool in current_tools
+                    else ""
+                )
+
+            st.markdown(
+                f"""
+                <div class="stage {stage_class}">
+                    {stage_name}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("")
 
     for message in st.session_state.messages:
 
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        with st.chat_message(
+            message["role"]
+        ):
+
+            st.markdown(
+                message["content"]
+            )
 
     prompt = st.chat_input(
-        "Ask CodePilot to inspect, fix, or modify your project..."
+        "Give CodePilot a mission..."
     )
 
     if prompt:
@@ -452,7 +537,9 @@ with main_area:
 
         try:
 
-            with st.spinner("⚡ CodePilot is working..."):
+            with st.spinner(
+                "CodePilot is working..."
+            ):
 
                 response = run_agent(
                     prompt,
@@ -475,40 +562,48 @@ with main_area:
 
             st.session_state.activity = activity_log
 
-            error_message = (
-                "⚠️ **Agent unavailable right now.**\n\n"
-                f"`{error}`"
-            )
-
             st.session_state.messages.append(
                 {
                     "role": "assistant",
-                    "content": error_message,
+                    "content": (
+                        "⚠️ **Mission failed.**\n\n"
+                        f"`{error}`"
+                    ),
                 }
             )
 
             st.rerun()
 
 
-# =========================================================
-# Activity
-# =========================================================
+# ------------------------------------------------------------
+# Right: live signal
+# ------------------------------------------------------------
 
-with activity_area:
+with right:
 
     st.markdown(
-        '<div class="panel-title">⚡ ACTIVITY</div>',
+        '<div class="panel-title">LIVE SIGNAL</div>',
         unsafe_allow_html=True,
     )
 
     if not st.session_state.activity:
 
-        st.caption("Agent activity will appear here.")
-
         st.markdown(
             """
-            <div class="activity">
-                ◌ Waiting for task...
+            <div class="empty-box">
+
+                <div class="empty-icon">
+                    ◌
+                </div>
+
+                <div class="empty-title">
+                    Standby
+                </div>
+
+                <div class="empty-text">
+                    Waiting for a mission
+                </div>
+
             </div>
             """,
             unsafe_allow_html=True,
@@ -516,41 +611,86 @@ with activity_area:
 
     else:
 
-        seen = set()
+        shown_tools = set()
+        completed = False
 
         for item in st.session_state.activity:
 
-            item_type = item.get("type")
-            tool = item.get("tool")
-            message = item.get("message", "")
+            if item.get("type") == "tool":
 
-            if item_type == "tool" and tool:
+                tool = item.get("tool")
 
-                if tool not in seen:
+                if tool and tool not in shown_tools:
 
                     st.markdown(
                         f"""
-                        <div class="activity">
-                            🔧 <b>{tool}</b><br>
-                            <small>{message}</small>
+                        <div class="activity-item">
+
+                            <div class="activity-name">
+                                ✓ {tool}
+                            </div>
+
+                            <div class="activity-message">
+                                {item.get("message", "")}
+                            </div>
+
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
 
-                    seen.add(tool)
+                    shown_tools.add(tool)
 
-            elif item_type == "complete":
+            elif item.get("type") == "complete":
 
-                st.markdown(
-                    """
-                    <div class="activity-success">
-                        ✅ <b>Task completed</b>
+                completed = True
+
+        if completed:
+
+            test_count = None
+
+            for message in st.session_state.messages:
+
+                if message["role"] == "assistant":
+
+                    count = extract_test_count(
+                        message["content"]
+                    )
+
+                    if count:
+                        test_count = count
+
+            if test_count:
+
+                test_text = f"{test_count}/{test_count}"
+
+            else:
+
+                test_text = "OK"
+
+            st.markdown(
+                f"""
+                <div class="verify-box">
+
+                    <div class="verify-title">
+                        PROOF OF WORK
                     </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
 
-            elif item_type == "error":
+                    <div class="verify-main">
+                        ✓ MISSION VERIFIED
+                    </div>
 
-                st.error(message)
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.metric(
+                "Tests",
+                test_text,
+            )
+
+            st.metric(
+                "Tools used",
+                len(shown_tools),
+            )
