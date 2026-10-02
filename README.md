@@ -74,6 +74,7 @@ aiagent/
 ├── uv.lock
 └── README.md
 
+
 ## 🔧 Available Tools
 
 The agent can interact with the project through several tools.
@@ -144,7 +145,6 @@ The agent can inspect the project, identify relevant files, modify the code, exe
 * Git
 * `uv`
 * An LLM API key/configuration required by the application
-* Streamlit
 
 ### Clone the repository
 
@@ -161,28 +161,10 @@ This project uses `pyproject.toml` and `uv.lock`.
 uv sync
 
 
-## 🚀 Running the Web App
+## 🚀 Run the Web Application
 
-Follow these steps to run the AI Coding Agent locally.
+Start the Streamlit application with:
 
-### 1. Open the project
-
-Open Ubuntu Terminal and navigate to the project directory:
-
-
-cd ~/aiagent
-
-
-### 2. Install dependencies
-
-Make sure the project dependencies are installed:
-
-uv sync
-
-
-### 3. Start the Streamlit application
-
-Run:
 
 uv run streamlit run app.py
 
@@ -193,64 +175,51 @@ After starting the application, the terminal will display a local URL similar to
 Local URL: http://localhost:8501
 
 
-### 4. Open the application in your browser
+Open the URL in your browser:
 
-Open your web browser and visit:
 
 http://localhost:8501
 
 
 You should now see the AI Coding Agent web interface.
 
-### 5. Keep the terminal running
+> **Note:** Keep the terminal running while using the application.
+> To stop the Streamlit server, press `Ctrl + C`.
 
-The Streamlit server must remain running in the terminal while you use the application.
+## 💡 Example Usage
 
-To stop the application:
-
-```text
-Ctrl + C
-```
-
-### ▶️ Quick Start
-
-After the project has been cloned and dependencies have been installed, the application can be started with:
+Once the application is running, you can provide a coding task such as:
 
 
-cd ~/aiagent
-uv run streamlit run app.py
+Fix the bug in the calculator project.
 
 
-Then open:
-
-http://localhost:8501
-
+The agent can then inspect the project, read relevant files, modify the code, and execute Python code as part of the task.
 
 ## 🧪 Running Tests
 
-The repository contains tests for the main file-operation and Python-execution tools.
+The repository includes tests for the project's main file-operation and Python-execution tools.
 
-Run the test suite using:
-
-
-pytest
+Run the test suite with:
 
 
-or run individual tests, for example:
+uv run pytest
 
 
-pytest test_get_files_info.py
+You can also run an individual test file:
 
+
+uv run pytest test_get_files_info.py
 
 ## 🎯 Project Goal
 
 The goal of this project is to explore how Large Language Models can be combined with tools and an execution environment to create an AI agent capable of performing practical software-engineering tasks.
 
-Instead of only generating code, the agent can interact with an existing project by inspecting files, modifying code, executing Python programs, and using the results to continue its work.
+Instead of only generating code, the agent can interact with an existing project by inspecting files, modifying code, executing Python programs, and using the results to continue working on the task.
 
 ## 🚧 Current Limitations
 
-This is an actively developing project. The current version is a functional foundation for an AI coding agent, but several areas can be improved before production use, including:
+This is an actively developing project. The current version provides a functional foundation for an AI coding agent, but several areas can be improved before production use, including:
 
 * Stronger sandboxing and security controls
 * More robust error handling
@@ -283,6 +252,8 @@ The current version provides the core functionality required for an AI coding ag
 ## 👩‍💻 Author
 
 **Hiba Hroob**
+
+GitHub: [hiba-hroob/aiagent](https://github.com/hiba-hroob/aiagent)
 
 ## 📄 License
 
