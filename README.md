@@ -161,14 +161,67 @@ This project uses `pyproject.toml` and `uv.lock`.
 uv sync
 
 
-### Run the web application
+## 🚀 Running the Web App
 
+Follow these steps to run the AI Coding Agent locally.
+
+### 1. Open the project
+
+Open Ubuntu Terminal and navigate to the project directory:
+
+
+cd ~/aiagent
+
+
+### 2. Install dependencies
+
+Make sure the project dependencies are installed:
+
+uv sync
+
+
+### 3. Start the Streamlit application
+
+Run:
 
 uv run streamlit run app.py
 
 
-Then open the local Streamlit URL shown in the terminal, usually:
+After starting the application, the terminal will display a local URL similar to:
 
+
+Local URL: http://localhost:8501
+
+
+### 4. Open the application in your browser
+
+Open your web browser and visit:
+
+http://localhost:8501
+
+
+You should now see the AI Coding Agent web interface.
+
+### 5. Keep the terminal running
+
+The Streamlit server must remain running in the terminal while you use the application.
+
+To stop the application:
+
+```text
+Ctrl + C
+```
+
+### ▶️ Quick Start
+
+After the project has been cloned and dependencies have been installed, the application can be started with:
+
+
+cd ~/aiagent
+uv run streamlit run app.py
+
+
+Then open:
 
 http://localhost:8501
 
@@ -230,8 +283,6 @@ The current version provides the core functionality required for an AI coding ag
 ## 👩‍💻 Author
 
 **Hiba Hroob**
-
-GitHub: https://github.com/hiba-hroob/aiagent
 
 ## 📄 License
 
