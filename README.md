@@ -1,83 +1,97 @@
-# 🤖 AI Coding Agent
+# 🧬 CodePilot
 
-An AI-powered coding agent built with Python that can inspect a software project, read and modify files, execute Python code, and iteratively work toward solving development tasks.
+**CodePilot** is an AI-powered coding agent built with Python and Streamlit.
 
-The project uses an LLM with tool/function calling to allow the agent to interact with a real project workspace instead of only generating text responses.
+It can inspect a real software project, read and modify files, execute Python programs, and iteratively work toward solving development tasks.
+
+Instead of only generating code suggestions, CodePilot can interact with a project workspace through tool and function calling.
+
+## 🌐 Live Demo
+
+Try CodePilot online:
+
+**https://codepilott-ai.streamlit.app/**
+
+The deployed version provides an interactive web interface where you can give CodePilot a software-engineering task and watch it inspect the project, use tools, test code, and verify the result.
 
 ## ✨ Features
 
-* 🤖 AI-powered coding assistant
+* 🤖 AI-powered coding agent
 * 📂 Inspect project files and directories
 * 📖 Read source code and file contents
 * ✏️ Create and modify files
 * ▶️ Execute Python files
-* 🔄 Iterative agent/tool execution
+* 🔄 Iterative agent and tool execution
 * 🧪 Run and verify code during tasks
-* 🖥️ Streamlit-based web interface
+* 🖥️ Interactive Streamlit web interface
 * 🧰 Modular tool/function architecture
-* 🧮 Includes a sample Python calculator project for testing the agent
+* 🧮 Includes a sample Python calculator project
+* 🌐 Deployed as a live web application
 
 ## 🏗️ Architecture
 
-The project follows an agent-based architecture where the language model can decide which tools it needs to use to complete a task.
+CodePilot follows an agent-based architecture where the language model decides which tools it needs to use to complete a task.
 
+```text
+                         User
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │   Streamlit UI  │
+                  └────────┬────────┘
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │    AI Agent     │
+                  │    Main Loop    │
+                  └────────┬────────┘
+                           │
+                  Tool / Function Calls
+                           │
+            ┌──────────────┼──────────────┐
+            ▼              ▼              ▼
+       Read Files      Write Files    Run Python
+            │              │              │
+            └──────────────┼──────────────┘
+                           ▼
+                  Project Workspace
+```
 
-                    User
-                      │
-                      ▼
-              ┌───────────────┐
-              │  Streamlit UI │
-              └───────┬───────┘
-                      │
-                      ▼
-              ┌───────────────┐
-              │   AI Agent    │
-              │   Main Loop   │
-              └───────┬───────┘
-                      │
-              Tool / Function Calls
-                      │
-        ┌─────────────┼─────────────┐
-        ▼             ▼             ▼
-   Read Files     Write Files    Run Python
-        │             │             │
-        └─────────────┼─────────────┘
-                      ▼
-                 Project Workspace
+The agent can repeatedly inspect, modify, execute, and verify code as it works toward the requested task.
 
+## 🔄 How CodePilot Works
 
-## 📁 Project Structure
+A typical task follows this workflow:
 
+```text
+User Request
+     ↓
+Understand Task
+     ↓
+Scan Project
+     ↓
+Read Relevant Files
+     ↓
+Select Tools
+     ↓
+Modify Code
+     ↓
+Run Python / Tests
+     ↓
+Analyze Results
+     ↓
+Fix and Retest if Needed
+     ↓
+Verify Result
+```
 
-aiagent/
-│
-├── app.py
-├── main.py
-├── call_function.py
-├── prompts.py
-│
-├── functions/
-│   ├── get_files_info.py
-│   ├── get_file_content.py
-│   ├── write_file.py
-│   └── run_python_file.py
-│
-├── calculator/
-│   └── Sample Python project
-│
-├── test_get_files_info.py
-├── test_get_file_content.py
-├── test_write_file.py
-├── test_run_python_file.py
-│
-├── pyproject.toml
-├── uv.lock
-└── README.md
+For example, a user can ask:
 
+> Fix the bug in the calculator project.
+
+CodePilot can then inspect the project, read the relevant files, modify the implementation, execute Python code, analyze the result, and continue iterating when necessary.
 
 ## 🔧 Available Tools
-
-The agent can interact with the project through several tools.
 
 ### `get_files_info`
 
@@ -95,166 +109,266 @@ Creates or modifies files inside the allowed project workspace.
 
 Executes a Python file and returns the result to the agent.
 
-These tools allow the model to move from simply suggesting code to actually interacting with a software project.
+Together, these tools allow the model to move beyond text generation and interact directly with a software project.
 
-## 🔄 How the Agent Works
+## 📁 Project Structure
 
-A typical task follows an iterative process:
+```text
+aiagent/
+│
+├── app.py
+├── main.py
+├── call_function.py
+├── prompts.py
+│
+├── functions/
+│   ├── get_files_info.py
+│   ├── get_file_content.py
+│   ├── write_file.py
+│   └── run_python_file.py
+│
+├── calculator/
+│   ├── README.md
+│   ├── main.py
+│   ├── lorem.txt
+│   ├── verify_calc.py
+│   ├── tests.py
+│   └── pkg/
+│       ├── calculator.py
+│       ├── render.py
+│       └── morelorem.txt
+│
+├── test_get_files_info.py
+├── test_get_file_content.py
+├── test_write_file.py
+├── test_run_python_file.py
+│
+├── pyproject.toml
+├── uv.lock
+└── README.md
+```
 
+## 🖥️ Web Interface
 
-User Request
-     │
-     ▼
-Understand Task
-     │
-     ▼
-Inspect Project
-     │
-     ▼
-Read Relevant Files
-     │
-     ▼
-Select Tools
-     │
-     ▼
-Modify Code
-     │
-     ▼
-Run Python / Tests
-     │
-     ▼
-Analyze Result
-     │
-     └──────► Continue if needed
-     │
-     ▼
-Final Response
+CodePilot uses **Streamlit** to provide an interactive browser-based interface.
 
+The interface shows:
 
-For example, a user can provide a task such as:
+* Current agent stage
+* Project files
+* User requests
+* Tool activity
+* Agent results
+* Verification status
 
-> Fix the bug in the calculator project.
+A typical successful task progresses through stages such as:
 
-The agent can inspect the project, identify relevant files, modify the code, execute Python code, and use the resulting output to continue working on the task.
+```text
+UNDERSTAND → SCAN → READ → TEST → PROVE
+```
 
-## 🖥️ Running the Project
+## 💻 Local Development
 
 ### Requirements
 
-* Python 3
+* Python 3.14+
 * Git
 * `uv`
-* An LLM API key/configuration required by the application
+* OpenAI API access
 
 ### Clone the repository
 
-
-git clone https://github.com/hiba-hroob/aiagent.git
+```bash
+git clone git@github.com:hiba-hroob/aiagent.git
 cd aiagent
-
+```
 
 ### Install dependencies
 
 This project uses `pyproject.toml` and `uv.lock`.
 
-
+```bash
 uv sync
+```
 
+### Configure environment variables
 
-## 🚀 Run the Web Application
+Create a local `.env` file and provide the required OpenAI API key.
 
-Start the Streamlit application with:
+```env
+OPENAI_API_KEY=your_api_key_here
+```
 
+**Never commit `.env` or API keys to GitHub.**
 
+### Run the application
+
+```bash
 uv run streamlit run app.py
+```
 
+The application will be available at:
 
-After starting the application, the terminal will display a local URL similar to:
-
-
-Local URL: http://localhost:8501
-
-
-Open the URL in your browser:
-
-
+```text
 http://localhost:8501
+```
 
+## 🚀 Deployment
 
-You should now see the AI Coding Agent web interface.
+CodePilot is deployed using **Streamlit Community Cloud**.
 
-> **Note:** Keep the terminal running while using the application.
-> To stop the Streamlit server, press `Ctrl + C`.
+The deployed application runs `app.py` as the Streamlit entry point.
 
-## 💡 Example Usage
+```text
+GitHub Repository
+       ↓
+Streamlit Community Cloud
+       ↓
+Streamlit Application
+       ↓
+Python AI Agent
+       ↓
+OpenAI API + Project Tools
+```
 
-Once the application is running, you can provide a coding task such as:
+Secrets such as the OpenAI API key should be stored using the deployment platform's secret management rather than committed to the repository.
 
+## 💡 Example Task
 
+Once CodePilot is running, try:
+
+```text
+Inspect the calculator project and tell me what files it contains.
+```
+
+Or:
+
+```text
 Fix the bug in the calculator project.
+```
 
+The agent can inspect the project, read the relevant files, use its tools, execute Python code, and verify its work.
 
-The agent can then inspect the project, read relevant files, modify the code, and execute Python code as part of the task.
+## 🧪 Testing
 
-## 🧪 Running Tests
+The repository includes tests for the main project-operation tools.
 
-The repository includes tests for the project's main file-operation and Python-execution tools.
+Run the full test suite:
 
-Run the test suite with:
-
-
+```bash
 uv run pytest
+```
 
+Run an individual test file:
 
-You can also run an individual test file:
-
-
+```bash
 uv run pytest test_get_files_info.py
+```
+
+The tests cover functionality such as:
+
+* File and directory inspection
+* File content reading
+* File writing
+* Python file execution
+
+## 🔐 Security Considerations
+
+CodePilot is designed as a learning and experimentation project around AI-powered software engineering.
+
+Potential production improvements include:
+
+* Stronger filesystem isolation
+* Sandboxed code execution
+* More restrictive tool permissions
+* Better resource limits
+* Safer handling of untrusted project code
+* Improved authentication and authorization
+* More robust logging and monitoring
+
+Because the agent can modify files and execute Python code, execution boundaries should be carefully controlled before using a similar architecture in a production environment.
 
 ## 🎯 Project Goal
 
-The goal of this project is to explore how Large Language Models can be combined with tools and an execution environment to create an AI agent capable of performing practical software-engineering tasks.
+The goal of CodePilot is to explore how Large Language Models can be combined with tools and an execution environment to perform practical software-engineering tasks.
 
-Instead of only generating code, the agent can interact with an existing project by inspecting files, modifying code, executing Python programs, and using the results to continue working on the task.
+Instead of only generating code, the agent can:
+
+```text
+Inspect
+   ↓
+Understand
+   ↓
+Read
+   ↓
+Modify
+   ↓
+Execute
+   ↓
+Analyze
+   ↓
+Verify
+```
+
+This creates a foundation for building more capable autonomous coding systems.
 
 ## 🚧 Current Limitations
 
-This is an actively developing project. The current version provides a functional foundation for an AI coding agent, but several areas can be improved before production use, including:
+The current version is a functional foundation rather than a production-ready autonomous coding platform.
 
-* Stronger sandboxing and security controls
+Areas for improvement include:
+
+* Stronger sandboxing and execution isolation
+* More comprehensive agent-level evaluation
+* Better planning and verification
+* Improved observability
+* Safer rollback and change tracking
 * More robust error handling
-* More comprehensive agent-level testing
-* Better task planning and verification
-* Improved observability and logging
-* More systematic evaluation of agent performance
-* Enhanced user interface and developer experience
+* Support for larger and more complex projects
 
 ## 🛣️ Future Improvements
 
 Planned improvements include:
 
-* 🧠 Better task planning and reasoning
+* 🧠 Better task planning
 * 🔄 Automated test → fix → retest workflows
-* 🔐 Stronger execution and filesystem isolation
+* 🔐 Stronger execution isolation
 * 📊 Agent evaluation and performance metrics
 * 🌳 Git integration and change tracking
 * ↩️ Safer rollback mechanisms
-* 🖥️ Improved agent monitoring UI
-* 🧪 Larger automated evaluation benchmark
+* 🖥️ Enhanced agent monitoring
+* 🧪 Larger evaluation benchmarks
 * 📚 Improved documentation and examples
 
 ## 📌 Project Status
 
 **Status: Active Development**
 
-The current version provides the core functionality required for an AI coding agent and serves as the foundation for further improvements in reliability, security, evaluation, and autonomous software-engineering capabilities.
+CodePilot currently provides a working AI coding-agent foundation with:
+
+* ✅ AI-powered task execution
+* ✅ Tool/function calling
+* ✅ Project inspection
+* ✅ File reading and writing
+* ✅ Python execution
+* ✅ Iterative workflows
+* ✅ Verification steps
+* ✅ Streamlit web interface
+* ✅ Live web deployment
+* ✅ Automated tool tests
 
 ## 👩‍💻 Author
 
 **Hiba Hroob**
 
-GitHub: [hiba-hroob/aiagent](https://github.com/hiba-hroob/aiagent)
+GitHub:
+
+https://github.com/hiba-hroob
+
+Repository:
+
+https://github.com/hiba-hroob/aiagent
 
 ## 📄 License
 
-This project is currently under development. License information can be added when the project is prepared for public release.
+This project is currently under active development. License information can be added when the project is prepared for public release.
