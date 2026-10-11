@@ -9,8 +9,8 @@ Instead of only generating code suggestions, CodePilot can interact with a proje
 ## 🌐 Live Demo
 
 Try CodePilot online:
-
-**https://codepilott-ai.streamlit.app/**
+ 
+Visit CodePilott Live
 
 The deployed version provides an interactive web interface where you can give CodePilot a software-engineering task and watch it inspect the project, use tools, test code, and verify the result.
 
