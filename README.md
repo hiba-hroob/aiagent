@@ -6,13 +6,11 @@ It can inspect a real software project, read and modify files, execute Python pr
 
 Instead of only generating code suggestions, CodePilot can interact with a project workspace through tool and function calling.
 
-## 🌐 Live Demo
+## 🌐 Try CodePilott Online
 
-Try CodePilot online:
- 
-Visit CodePilott Live
+🌐 [**Visit CodePilott Live**](https://codepilott-ai.streamlit.app/)
 
-The deployed version provides an interactive web interface where you can give CodePilot a software-engineering task and watch it inspect the project, use tools, test code, and verify the result.
+The deployed version provides an interactive web interface where you can give CodePilott a software-engineering task and watch it inspect the project, use tools, test code, and verify the result.
 
 ## ✨ Features
 
